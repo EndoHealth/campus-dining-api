@@ -17,6 +17,8 @@
     "db:prune": "tsx scripts/prune-old-data.ts",
     "precrawl:menus": "prisma generate",
     "crawl:menus": "tsx scripts/crawl-and-persist.ts",
+    "precrawl:food-trucks": "prisma generate",
+    "crawl:food-trucks": "tsx scripts/crawl-food-trucks.ts",
     "prebuild": "prisma generate",
     "build": "tsc -p tsconfig.build.json",
     "pretest": "prisma generate",

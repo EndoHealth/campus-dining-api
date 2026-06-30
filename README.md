@@ -121,6 +121,18 @@ CRAWL_CONCURRENCY=2
 FETCH_ATTEMPTS=3
 ```
 
+`npm run crawl:food-trucks` collects dated `ServiceWindow` rows for schools with
+adapter-ready public food truck sources. By default it crawls today plus the next
+seven days. Useful scheduler env:
+
+```text
+FOOD_TRUCK_CRAWL_DATE=2026-06-30
+FOOD_TRUCK_DAYS_AHEAD=7
+FOOD_TRUCK_CRAWL_SCHOOLS=uc-davis,stanford
+FOOD_TRUCK_CRAWL_CONCURRENCY=2
+FOOD_TRUCK_CRAWL_MAX_FAILURES=4
+```
+
 `npm run db:prune` removes old menus and crawl metadata according to
 `MENU_RETENTION_DAYS` and `CRAWL_RUN_RETENTION_DAYS`. Use `PRUNE_DRY_RUN=true`
 before enabling destructive pruning in a new environment.
@@ -138,6 +150,8 @@ Runtime is `PORT=3410` behind a Cloudflare Tunnel for
 
 ```text
 com.endohealth.campus-dining-api
+com.endohealth.campus-dining-crawler
+com.endohealth.campus-dining-food-truck-crawler
 com.endohealth.campus-dining-tunnel
 ```
 
@@ -203,6 +217,15 @@ not change the default API semantics; it only fills adapter-ready zero-item
 schools with the nearest non-empty date and records `dateFallback`. On
 2026-06-30, this raises adapter-ready schools with item rows from 46 to 47 by
 using Michigan's 2026-05-19 MaizeMeals data, yielding 19,524 total items.
+
+Food truck service-window collection is adapter-ready for nine Top 50 schools:
+MIT, Stanford, Rice, UCLA, UT Austin, UC Davis, Boston University, Rutgers, and
+Northeastern. A local 2026-06-30 through 2026-07-07 crawl persisted 61 dated
+service windows across those schools. The sources are public official school
+pages where available plus Boston.gov's public ArcGIS food truck schedule for
+BU/Northeastern campus-named stops. Most sources provide vendor, date, time, and
+location only; item-level menus and nutrition are not published and are not
+invented.
 
 Carnegie Mellon is adapter-ready for public CMUEats static menu PDFs with dated
 location operating hours. This source provides item names and prices only, not

@@ -119,7 +119,7 @@ menusRouter.get('/:schoolId/service-windows', async (c) => {
         state: 'adapter_ready',
         source: 'database',
         fetchedAt,
-        sourceUrl: school.sourceUrl,
+        sourceUrl: serviceWindows[0]?.sourceUrl ?? school.sourceUrl,
         serviceWindows,
         summary: {
           serviceWindows: serviceWindows.length,
