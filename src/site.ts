@@ -1,3 +1,48 @@
+import { TOP_50_SCHOOLS } from './data/top50-schools.js';
+import type { SchoolCoverage } from './types/dining.js';
+
+const DISPLAY_NAME_TO_SCHOOL_ID: Record<string, string> = {
+  Princeton: 'princeton',
+  MIT: 'mit',
+  Harvard: 'harvard',
+  Yale: 'yale',
+  Duke: 'duke',
+  'Johns Hopkins': 'johns-hopkins',
+  UPenn: 'upenn',
+  Brown: 'brown',
+  Dartmouth: 'dartmouth',
+  'UC Berkeley': 'uc-berkeley',
+  UCLA: 'ucla',
+  Vanderbilt: 'vanderbilt',
+  Emory: 'emory',
+  Georgetown: 'georgetown',
+  'UNC Chapel Hill': 'unc',
+  'UC San Diego': 'ucsd',
+  'Georgia Tech': 'georgia-tech',
+  NYU: 'nyu',
+  'UC Irvine': 'uc-irvine',
+  'Boston College': 'boston-college',
+  Tufts: 'tufts',
+  'UW Madison': 'uw-madison',
+  'Ohio State': 'ohio-state',
+  'Boston University': 'boston-university',
+  Rutgers: 'rutgers',
+  'University of Washington': 'washington',
+  Purdue: 'purdue',
+  'University of Georgia': 'georgia',
+  Rochester: 'rochester',
+  Stanford: 'stanford',
+  Cornell: 'cornell',
+  Michigan: 'michigan',
+  'Notre Dame': 'notre-dame',
+  USC: 'usc',
+  'UT Austin': 'ut-austin',
+  UCSB: 'ucsb',
+  'University of Chicago': 'uchicago',
+  'University of Florida': 'florida',
+  'Northeastern University': 'northeastern',
+};
+
 const snapshot = {
   generatedAt: '2026-06-30T03:30:55.545Z',
   mode: 'best_available',
@@ -42,6 +87,7 @@ const snapshot = {
     ['University of Georgia', 2, 712, 644, 644, 696, 684, 'Bolton, The Village Summit'],
     ['Rochester', 2, 253, 240, 253, 112, 20, 'Douglass Dining Center, The Pit'],
   ].map(([name, cafeterias, items, nutrition, ingredients, allergens, dietary, locations]) => ({
+    schoolId: DISPLAY_NAME_TO_SCHOOL_ID[name as string],
     name,
     cafeterias,
     items,
@@ -59,12 +105,33 @@ const snapshot = {
     ['USC', 1, 'Menus, allergens, dietary; no nutrition/ingredients'],
     ['UT Austin', 1, 'Full FoodPro nutrition/ingredients in one location'],
     ['UCSB', 3, 'Menus and dietary labels; official nutrition host currently times out'],
-  ].map(([name, cafeterias, note]) => ({ name, cafeterias, note })),
-  pendingSchools: ['University of Chicago', 'University of Florida', 'Northeastern University'],
+  ].map(([name, cafeterias, note]) => ({
+    schoolId: DISPLAY_NAME_TO_SCHOOL_ID[name as string],
+    name,
+    cafeterias,
+    note,
+  })),
+  pendingSchools: ['University of Chicago', 'University of Florida', 'Northeastern University'].map((name) => ({
+    schoolId: DISPLAY_NAME_TO_SCHOOL_ID[name],
+    name,
+  })),
 };
 
 export function getSiteSnapshot() {
   return snapshot;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    const replacements: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return replacements[char] ?? char;
+  });
 }
 
 export function renderHomePage() {
@@ -352,6 +419,14 @@ export function renderHomePage() {
       font-size: 12px;
       text-transform: uppercase;
     }
+    .schoolLink {
+      color: var(--ink);
+      text-decoration: none;
+      transition-property: color;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(.2,0,0,1);
+    }
+    .schoolLink:hover { color: var(--lime); }
     td.num {
       color: #ffffff;
       white-space: nowrap;
@@ -558,6 +633,7 @@ export function renderHomePage() {
     const snapshot = ${snapshotJson};
     const richRows = snapshot.richSchools.map((row) => ({ ...row, state: 'rich', note: row.locations }));
     const partialRows = snapshot.partialSchools.map((row) => ({
+      schoolId: row.schoolId,
       name: row.name,
       cafeterias: row.cafeterias,
       items: 0,
@@ -569,8 +645,9 @@ export function renderHomePage() {
       state: 'partial',
       note: row.note,
     }));
-    const pendingRows = snapshot.pendingSchools.map((name) => ({
-      name,
+    const pendingRows = snapshot.pendingSchools.map((school) => ({
+      schoolId: school.schoolId,
+      name: school.name,
       cafeterias: 0,
       items: 0,
       nutrition: 0,
@@ -617,8 +694,9 @@ export function renderHomePage() {
         const nutritionCell = row.items
           ? row.nutrition.toLocaleString() + '<div class="bar"><i style="width:' + coverage + '%"></i></div>'
           : '<span class="muted">not published</span>';
+        const href = '/schools/' + encodeURIComponent(row.schoolId);
         return '<tr>' +
-          '<td><strong>' + escapeHtml(row.name) + '</strong><div class="muted">' + escapeHtml(row.locations) + '</div></td>' +
+          '<td><a class="schoolLink" href="' + href + '"><strong>' + escapeHtml(row.name) + '</strong></a><div class="muted">' + escapeHtml(row.locations) + '</div></td>' +
           '<td class="num" data-label="Cafeterias">' + formatCount(row.cafeterias) + '</td>' +
           '<td class="num" data-label="Items">' + formatCount(row.items) + '</td>' +
           '<td class="num" data-label="Nutrition">' + nutritionCell + '</td>' +
@@ -640,6 +718,677 @@ export function renderHomePage() {
       });
     });
     render();
+  </script>
+</body>
+</html>`;
+}
+
+export function renderSchoolCalendarPage(school: SchoolCoverage) {
+  const schoolJson = JSON.stringify({
+    id: school.id,
+    rank: school.rank,
+    name: school.name,
+    city: school.city,
+    state: school.state,
+    providerKind: school.providerKind,
+    integrationStatus: school.integrationStatus,
+    sourceUrl: school.sourceUrl,
+  }).replace(/</g, '\\u003c');
+  const schoolsJson = JSON.stringify(
+    TOP_50_SCHOOLS.map((item) => ({
+      id: item.id,
+      rank: item.rank,
+      name: item.name,
+      integrationStatus: item.integrationStatus,
+      providerKind: item.providerKind,
+    }))
+  ).replace(/</g, '\\u003c');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(school.name)} Dining Calendar</title>
+  <meta name="description" content="Calendar view for ${escapeHtml(school.name)} dining menus." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080a0f;
+      --ink: #f7f8f4;
+      --muted: #a9b1c7;
+      --line: rgba(255,255,255,.14);
+      --blue: #43d7ff;
+      --pink: #ff4fac;
+      --lime: #d8ff64;
+      --orange: #ff9f43;
+      --panel: rgba(9,13,22,.82);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --shadow-border: 0 0 0 1px rgba(255,255,255,.10);
+      --shadow-border-hover: 0 0 0 1px rgba(255,255,255,.18);
+      --shadow-panel:
+        0 0 0 1px rgba(255,255,255,.10),
+        0 24px 70px rgba(0,0,0,.42),
+        0 8px 20px rgba(0,0,0,.25);
+    }
+    * { box-sizing: border-box; }
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    h1, h2, h3 { text-wrap: balance; }
+    p, span, li, button, select { text-wrap: pretty; }
+    .shell {
+      position: relative;
+      min-height: 100vh;
+      isolation: isolate;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .shell::before,
+    .shell::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -2;
+    }
+    .shell::before {
+      background: url("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1800&q=82") center/cover no-repeat;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+      filter: saturate(1.05) contrast(1.04);
+    }
+    .shell::after {
+      z-index: -1;
+      background:
+        linear-gradient(90deg, rgba(8,10,15,.98) 0%, rgba(8,10,15,.82) 50%, rgba(8,10,15,.94) 100%),
+        linear-gradient(180deg, rgba(8,10,15,.28) 0%, rgba(8,10,15,.72) 58%, #080a0f 100%);
+    }
+    header, main, footer {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-top: 24px;
+      padding-bottom: 18px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      color: var(--ink);
+      font-weight: 780;
+      text-decoration: none;
+    }
+    .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      background: conic-gradient(from 120deg, var(--blue), var(--lime), var(--orange), var(--pink), var(--blue));
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.16),
+        0 0 30px rgba(67,215,255,.45);
+    }
+    nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    a.button, button, select {
+      appearance: none;
+      border: 0;
+      min-height: 42px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.08);
+      color: var(--ink);
+      box-shadow: var(--shadow-border);
+      font: inherit;
+      text-decoration: none;
+      transition-property: background-color, box-shadow, scale;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(.2,0,0,1);
+    }
+    a.button, button { display: inline-flex; align-items: center; justify-content: center; padding: 10px 13px; cursor: pointer; }
+    select { padding: 10px 34px 10px 13px; cursor: pointer; }
+    a.button:hover, button:hover, select:hover { background: rgba(255,255,255,.13); box-shadow: var(--shadow-border-hover); }
+    a.button:active, button:active { scale: .96; }
+    a.button:focus-visible, button:focus-visible, select:focus-visible {
+      outline: 2px solid rgba(67,215,255,.86);
+      outline-offset: 3px;
+    }
+    main { padding-top: 26px; padding-bottom: 42px; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, .95fr) minmax(340px, 1.05fr);
+      gap: 22px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+    .eyebrow {
+      color: var(--lime);
+      font-weight: 760;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+    h1 {
+      max-width: 760px;
+      margin: 12px 0;
+      font-size: clamp(44px, 6.2vw, 82px);
+      line-height: .94;
+      letter-spacing: 0;
+    }
+    .sub {
+      max-width: 720px;
+      color: #d9deea;
+      font-size: clamp(17px, 1.8vw, 21px);
+      line-height: 1.42;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-radius: var(--radius-lg);
+      background: rgba(8,10,15,.76);
+      box-shadow: var(--shadow-panel);
+      backdrop-filter: blur(18px);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+    .panel {
+      border-radius: var(--radius-lg);
+      background: var(--panel);
+      box-shadow: var(--shadow-panel);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+    }
+    .panelHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panelHead h2 { margin: 0; font-size: 18px; }
+    .month {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .month strong { font-size: 17px; }
+    .iconButton {
+      width: 42px;
+      padding: 0;
+      font-size: 22px;
+    }
+    .weekdays, .days {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 1px;
+      background: rgba(255,255,255,.08);
+    }
+    .weekdays span {
+      padding: 10px 0;
+      background: rgba(8,10,15,.94);
+      color: var(--muted);
+      text-align: center;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .day {
+      min-height: 54px;
+      border-radius: 0;
+      background: rgba(8,10,15,.9);
+      box-shadow: none;
+      color: var(--ink);
+    }
+    .day:hover { background: rgba(255,255,255,.08); box-shadow: none; }
+    .day.isOutside { color: rgba(255,255,255,.34); }
+    .day.isToday { color: var(--blue); }
+    .day.isSelected {
+      background: rgba(216,255,100,.16);
+      color: var(--lime);
+      box-shadow: inset 0 0 0 1px rgba(216,255,100,.38);
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+    .summary div {
+      background: rgba(8,10,15,.9);
+      padding: 14px;
+    }
+    .summary b {
+      display: block;
+      color: var(--lime);
+      font-size: 24px;
+    }
+    .summary span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .state {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: #080a0f;
+      background: var(--lime);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+    .state.pending { color: #fff; background: var(--pink); }
+    .menuBody { padding: 16px; }
+    .message {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .location {
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.045);
+      box-shadow: var(--shadow-border);
+      overflow: hidden;
+    }
+    .location + .location { margin-top: 14px; }
+    .locationHead {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .locationHead h3 { margin: 0; font-size: 17px; }
+    .period { padding: 14px; }
+    .period + .period { border-top: 1px solid rgba(255,255,255,.08); }
+    .period h4 {
+      margin: 0 0 10px;
+      color: var(--blue);
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+    .station {
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(8,10,15,.58);
+    }
+    .station + .station { margin-top: 10px; }
+    .stationTitle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid rgba(255,255,255,.07);
+    }
+    .item:first-of-type { border-top: 0; }
+    .itemName { font-weight: 760; }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 7px;
+    }
+    .tag {
+      border-radius: 999px;
+      padding: 3px 7px;
+      color: #d9deea;
+      background: rgba(255,255,255,.08);
+      font-size: 12px;
+    }
+    .itemMeta {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .stagger {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(4px);
+      animation: enterUp 420ms cubic-bezier(.2,0,0,1) forwards;
+    }
+    .stagger:nth-child(1) { animation-delay: 0ms; }
+    .stagger:nth-child(2) { animation-delay: 90ms; }
+    .stagger:nth-child(3) { animation-delay: 180ms; }
+    @keyframes enterUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+      }
+    }
+    footer {
+      padding-top: 0;
+      padding-bottom: 34px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 900px) {
+      .hero, .layout { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr 1fr; }
+      .controls select { grid-column: 1 / -1; }
+    }
+    @media (max-width: 620px) {
+      header, main, footer { padding-left: 14px; padding-right: 14px; }
+      nav { display: none; }
+      h1 { font-size: clamp(42px, 12vw, 54px); }
+      .controls { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: 1fr 1fr; }
+      .day { min-height: 48px; }
+      .item { grid-template-columns: 1fr; }
+      .itemMeta { text-align: left; white-space: normal; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+      .stagger {
+        opacity: 1;
+        transform: none;
+        filter: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a class="brand" href="/"><div class="mark"></div><span>Campus Dining Index</span></a>
+      <nav>
+        <a class="button" href="/">Dashboard</a>
+        <a class="button" href="/v1/schools/${encodeURIComponent(school.id)}">School JSON</a>
+        <a class="button" href="/health">Health</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow stagger">Dining calendar</div>
+          <h1 class="stagger">${escapeHtml(school.name)}</h1>
+          <p class="sub stagger">${escapeHtml(school.city)}, ${escapeHtml(school.state)} menus by date, pulled from the normalized public dining API.</p>
+        </div>
+        <div class="controls">
+          <select id="schoolSelect" aria-label="Choose school"></select>
+          <button id="prevDay">Previous day</button>
+          <button id="today">Today</button>
+          <button id="nextDay">Next day</button>
+        </div>
+      </section>
+      <section class="layout">
+        <aside class="panel">
+          <div class="panelHead">
+            <h2 id="monthLabel">Calendar</h2>
+            <span class="state ${school.integrationStatus === 'adapter_ready' ? '' : 'pending'}">${escapeHtml(school.integrationStatus.replace('_', ' '))}</span>
+          </div>
+          <div class="month">
+            <button class="iconButton" id="prevMonth" aria-label="Previous month">‹</button>
+            <strong id="selectedLabel"></strong>
+            <button class="iconButton" id="nextMonth" aria-label="Next month">›</button>
+          </div>
+          <div class="weekdays">
+            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+          </div>
+          <div class="days" id="days"></div>
+        </aside>
+        <section class="panel">
+          <div class="panelHead">
+            <h2 id="menuTitle">Selected date</h2>
+            <span class="state" id="menuState">loading</span>
+          </div>
+          <div class="summary" id="summary"></div>
+          <div class="menuBody" id="menuBody"><p class="message">Loading menu...</p></div>
+        </section>
+      </section>
+    </main>
+    <footer>Calendar data is near-real-time public menu polling. No login-gated data. No POS inventory claims.</footer>
+  </div>
+  <script>
+    const school = ${schoolJson};
+    const schools = ${schoolsJson};
+    const select = document.querySelector('#schoolSelect');
+    const daysEl = document.querySelector('#days');
+    const monthLabel = document.querySelector('#monthLabel');
+    const selectedLabel = document.querySelector('#selectedLabel');
+    const menuTitle = document.querySelector('#menuTitle');
+    const menuState = document.querySelector('#menuState');
+    const summary = document.querySelector('#summary');
+    const menuBody = document.querySelector('#menuBody');
+    let selectedDate = new Date();
+    let visibleMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+
+    function isoDate(date) {
+      const copy = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return copy.toISOString().slice(0, 10);
+    }
+
+    function displayDate(date) {
+      return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[char]);
+    }
+
+    function countItems(menu) {
+      return menu.locations.flatMap((location) =>
+        location.periods.flatMap((period) => period.stations.flatMap((station) => station.items))
+      );
+    }
+
+    function formatProvider(value) {
+      return value.replace(/^vendor_/, '').replace(/_/g, ' ');
+    }
+
+    function renderSchoolOptions() {
+      select.innerHTML = schools
+        .map((item) => '<option value="' + item.id + '"' + (item.id === school.id ? ' selected' : '') + '>#' + item.rank + ' ' + escapeHtml(item.name) + '</option>')
+        .join('');
+    }
+
+    function renderCalendar() {
+      monthLabel.textContent = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      selectedLabel.textContent = displayDate(selectedDate);
+      const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+      const start = new Date(first);
+      start.setDate(first.getDate() - first.getDay());
+      const selectedIso = isoDate(selectedDate);
+      const todayIso = isoDate(new Date());
+      const cells = [];
+      for (let index = 0; index < 42; index += 1) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        const dateIso = isoDate(date);
+        const classes = [
+          'day',
+          date.getMonth() === visibleMonth.getMonth() ? '' : 'isOutside',
+          dateIso === selectedIso ? 'isSelected' : '',
+          dateIso === todayIso ? 'isToday' : '',
+        ].filter(Boolean).join(' ');
+        cells.push('<button class="' + classes + '" data-date="' + dateIso + '">' + date.getDate() + '</button>');
+      }
+      daysEl.innerHTML = cells.join('');
+    }
+
+    function setSelectedDate(date) {
+      selectedDate = date;
+      visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      renderCalendar();
+      fetchMenu();
+    }
+
+    function renderSummary(values) {
+      summary.innerHTML = [
+        ['Locations', values.locations],
+        ['Periods', values.periods],
+        ['Items', values.items],
+        ['With nutrition', values.nutrition],
+      ]
+        .map(([label, value]) => '<div><b>' + value.toLocaleString() + '</b><span>' + label + '</span></div>')
+        .join('');
+    }
+
+    function renderMessage(label, body, stateClass = 'pending') {
+      menuState.className = 'state ' + stateClass;
+      menuState.textContent = label;
+      summary.innerHTML = '';
+      menuBody.innerHTML = '<p class="message">' + escapeHtml(body) + '</p>';
+    }
+
+    function itemMeta(item) {
+      const calories = item.nutrition.find((fact) => fact.key === 'calories');
+      const protein = item.nutrition.find((fact) => fact.key === 'protein');
+      const parts = [];
+      if (calories?.amount) parts.push(Math.round(calories.amount) + ' kcal');
+      if (protein?.amount) parts.push(protein.amount + (protein.unit ? protein.unit : 'g') + ' protein');
+      if (item.ingredients.length) parts.push(item.ingredients.length + ' ingredients');
+      if (item.allergens.length) parts.push(item.allergens.length + ' allergens');
+      return parts.join(' · ');
+    }
+
+    function renderMenu(menu) {
+      const items = countItems(menu);
+      const periods = menu.locations.reduce((total, location) => total + location.periods.length, 0);
+      renderSummary({
+        locations: menu.locations.length,
+        periods,
+        items: items.length,
+        nutrition: items.filter((item) => item.nutrition.length).length,
+      });
+      menuState.className = 'state';
+      menuState.textContent = 'ready';
+      if (!items.length) {
+        menuBody.innerHTML = '<p class="message">No menu items were published by this source for the selected date.</p>';
+        return;
+      }
+      menuBody.innerHTML = menu.locations.map((location) => {
+        const locationItems = location.periods.flatMap((period) => period.stations.flatMap((station) => station.items));
+        return '<article class="location">' +
+          '<div class="locationHead"><h3>' + escapeHtml(location.name) + '</h3><span class="muted">' + locationItems.length.toLocaleString() + ' items</span></div>' +
+          location.periods.map((period) => (
+            '<section class="period"><h4>' + escapeHtml(period.name) + '</h4>' +
+            period.stations.map((station) => {
+              const stationItems = station.items.slice(0, 24);
+              const hidden = station.items.length - stationItems.length;
+              return '<div class="station">' +
+                '<div class="stationTitle"><strong>' + escapeHtml(station.name) + '</strong><span>' + station.items.length.toLocaleString() + ' items</span></div>' +
+                stationItems.map((item) => {
+                  const tags = [...item.dietaryTags.slice(0, 4), ...item.allergens.slice(0, 3).map((allergen) => allergen.label)];
+                  const meta = itemMeta(item);
+                  return '<div class="item">' +
+                    '<div><div class="itemName">' + escapeHtml(item.name) + '</div>' +
+                    (tags.length ? '<div class="tags">' + tags.map((tag) => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' : '') +
+                    '</div>' +
+                    '<div class="itemMeta">' + escapeHtml(meta || item.availability.status) + '</div>' +
+                  '</div>';
+                }).join('') +
+                (hidden > 0 ? '<p class="message">+' + hidden.toLocaleString() + ' more items in this station.</p>' : '') +
+              '</div>';
+            }).join('') +
+            '</section>'
+          )).join('') +
+        '</article>';
+      }).join('');
+    }
+
+    async function fetchMenu() {
+      const date = isoDate(selectedDate);
+      menuTitle.textContent = displayDate(selectedDate);
+      renderMessage('loading', 'Fetching ' + school.name + ' menus for ' + date + '...', '');
+      try {
+        const response = await fetch('/v1/schools/' + encodeURIComponent(school.id) + '/menus?date=' + date);
+        const body = await response.json();
+        if (!response.ok || body.result?.state !== 'adapter_ready') {
+          const reason = body.result?.reason || body.result?.error || body.error || 'Menu adapter is not ready for this school/date.';
+          renderMessage('blocked', reason, 'pending');
+          return;
+        }
+        renderMenu(body.result.data);
+      } catch (error) {
+        renderMessage('error', error instanceof Error ? error.message : 'Menu fetch failed.', 'pending');
+      }
+    }
+
+    renderSchoolOptions();
+    renderCalendar();
+    fetchMenu();
+
+    select.addEventListener('change', () => {
+      window.location.href = '/schools/' + encodeURIComponent(select.value);
+    });
+    daysEl.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-date]');
+      if (!button) return;
+      const [year, month, day] = button.dataset.date.split('-').map(Number);
+      setSelectedDate(new Date(year, month - 1, day));
+    });
+    document.querySelector('#prevMonth').addEventListener('click', () => {
+      visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+      renderCalendar();
+    });
+    document.querySelector('#nextMonth').addEventListener('click', () => {
+      visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+      renderCalendar();
+    });
+    document.querySelector('#prevDay').addEventListener('click', () => {
+      const next = new Date(selectedDate);
+      next.setDate(selectedDate.getDate() - 1);
+      setSelectedDate(next);
+    });
+    document.querySelector('#nextDay').addEventListener('click', () => {
+      const next = new Date(selectedDate);
+      next.setDate(selectedDate.getDate() + 1);
+      setSelectedDate(next);
+    });
+    document.querySelector('#today').addEventListener('click', () => setSelectedDate(new Date()));
   </script>
 </body>
 </html>`;

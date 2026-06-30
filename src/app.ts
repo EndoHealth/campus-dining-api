@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { findSchoolById } from './data/coverage.js';
 import coverageRouter from './routes/coverage.js';
 import healthRouter from './routes/health.js';
 import menusRouter from './routes/menus.js';
 import schoolsRouter from './routes/schools.js';
-import { getSiteSnapshot, renderHomePage } from './site.js';
+import { getSiteSnapshot, renderHomePage, renderSchoolCalendarPage } from './site.js';
 
 export function createApp() {
   const app = new Hono();
@@ -46,6 +47,16 @@ export function createApp() {
 
   app.get('/v1/demo-summary', (c) => {
     return c.json(getSiteSnapshot());
+  });
+
+  app.get('/schools/:schoolId', (c) => {
+    const school = findSchoolById(c.req.param('schoolId'));
+
+    if (!school) {
+      return c.html('<!doctype html><title>School not found</title><h1>School not found</h1>', 404);
+    }
+
+    return c.html(renderSchoolCalendarPage(school));
   });
 
   app.route('/health', healthRouter);

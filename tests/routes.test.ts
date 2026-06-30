@@ -21,6 +21,33 @@ describe('routes', () => {
     expect(body.schools[0].id).toBe('stanford');
   });
 
+  it('serves the school dining calendar page', async () => {
+    const response = await app.request('/schools/princeton');
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('Princeton University Dining Calendar');
+    expect(body).toContain("fetch('/v1/schools/' + encodeURIComponent(school.id) + '/menus?date=' + date)");
+  });
+
+  it('returns 404 for unknown school calendar pages', async () => {
+    const response = await app.request('/schools/unknown-school');
+
+    expect(response.status).toBe(404);
+  });
+
+  it('serves demo summary rows with school ids for calendar links', async () => {
+    const response = await app.request('/v1/demo-summary');
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.richSchools[0].schoolId).toBe('princeton');
+    expect(body.pendingSchools[0]).toEqual({
+      schoolId: 'uchicago',
+      name: 'University of Chicago',
+    });
+  });
+
   it(
     'fetches live normalized menus for Princeton FoodPro',
     async () => {

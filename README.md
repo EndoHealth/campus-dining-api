@@ -38,6 +38,7 @@ http://localhost:3400
 ```http
 GET /health
 GET /
+GET /schools/:schoolId
 GET /v1/demo-summary
 GET /v1/coverage
 GET /v1/schools?query=stanford&status=confirmed&provider=official_api
@@ -49,6 +50,9 @@ Menu routes are intentionally adapter-gated. A school can be listed as
 `confirmed` for source availability while live normalized menu fetching remains
 `adapter_pending` until a stable direct provider fetch path is implemented and
 tested.
+
+`GET /schools/:schoolId` renders a school-level calendar UI. It uses the live
+menu endpoint client-side when a user selects a date.
 
 ## Deployment
 
