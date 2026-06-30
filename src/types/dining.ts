@@ -53,6 +53,27 @@ export type MenuQuery = {
   locationId?: string;
 };
 
+export type ServiceWindowQuery = {
+  date?: string;
+  type?: LocationType;
+};
+
+export type LocationType =
+  | 'dining_hall'
+  | 'cafe'
+  | 'market'
+  | 'retail'
+  | 'food_truck'
+  | 'popup'
+  | 'unknown';
+
+export type FactSourceKind =
+  | 'official'
+  | 'provider_derived'
+  | 'source_text'
+  | 'llm_estimated'
+  | 'unavailable';
+
 export type MenuFetchState =
   | 'adapter_pending'
   | 'poc_required'
@@ -64,6 +85,13 @@ export type MenuPrice = {
   currency?: 'USD';
   displayText?: string;
 };
+
+export type ServiceWindowAvailabilityStatus =
+  | 'available'
+  | 'planned'
+  | 'sold_out'
+  | 'unavailable'
+  | 'unknown';
 
 export type NutritionUnit =
   | 'kcal'
@@ -177,6 +205,12 @@ export type NormalizedMenuItem = {
   ingredients: IngredientFact[];
   ingredientStatement?: string;
   nutrition: NutritionFact[];
+  nutritionSource?: FactSourceKind;
+  ingredientSource?: FactSourceKind;
+  allergenSource?: FactSourceKind;
+  isEstimated?: boolean;
+  estimateLabel?: string;
+  disclaimer?: string;
   imageUrl?: string;
   itemUrl?: string;
   sourceUrl: string;
@@ -194,6 +228,7 @@ export type NormalizedMenu = {
   locations: Array<{
     id: string;
     name: string;
+    type?: LocationType;
     sourceLocationId?: string;
     address?: string;
     timezone?: string;
@@ -212,4 +247,31 @@ export type NormalizedMenu = {
       }>;
     }>;
   }>;
+};
+
+export type NormalizedServiceWindow = {
+  id: string;
+  schoolId: string;
+  date: string;
+  meal?: string;
+  startTime?: string;
+  endTime?: string;
+  status: ServiceWindowAvailabilityStatus;
+  location: {
+    id: string;
+    name: string;
+    type: LocationType;
+    address?: string;
+  };
+  vendor?: {
+    id: string;
+    name: string;
+    websiteUrl?: string;
+  };
+  menuCount: number;
+  itemCount: number;
+  sourceUrl: string;
+  sourceUpdatedAt?: string;
+  confidence: Confidence;
+  isEstimated: boolean;
 };

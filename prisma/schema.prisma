@@ -1,0 +1,535 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SupportStatus {
+  confirmed
+  needs_poc
+  unsupported
+}
+
+enum IntegrationStatus {
+  cataloged
+  adapter_pending
+  adapter_ready
+  poc_required
+}
+
+enum ProviderKind {
+  official_api
+  official_html
+  vendor_bonappetit
+  vendor_campusdish
+  vendor_dineoncampus
+  vendor_foodpro
+  vendor_mydininghub
+  vendor_netnutrition
+  vendor_nutrislice
+  vendor_sodexo
+  student_api
+}
+
+enum Confidence {
+  high
+  medium
+  low
+}
+
+enum DataSourceKind {
+  official_api
+  official_html
+  official_pdf
+  vendor_api
+  partner_api
+  social_public
+  llm_estimate
+}
+
+enum CrawlRunStatus {
+  running
+  success
+  partial
+  failed
+}
+
+enum LocationType {
+  dining_hall
+  cafe
+  market
+  retail
+  food_truck
+  popup
+  unknown
+}
+
+enum NutritionUnit {
+  kcal
+  g
+  mg
+  mcg
+  iu
+  percent_daily_value
+  count
+  other
+}
+
+enum NutritionKey {
+  calories
+  serving_size
+  servings_per_container
+  total_fat
+  saturated_fat
+  trans_fat
+  cholesterol
+  sodium
+  total_carbohydrate
+  dietary_fiber
+  total_sugars
+  added_sugars
+  protein
+  vitamin_d
+  calcium
+  iron
+  potassium
+  caffeine
+  other
+}
+
+enum AllergenKey {
+  milk
+  egg
+  fish
+  crustacean_shellfish
+  tree_nut
+  peanut
+  wheat
+  soy
+  sesame
+  gluten
+  other
+}
+
+enum AllergenStatus {
+  contains
+  may_contain
+  made_without
+  unknown
+}
+
+enum DietaryTag {
+  vegan
+  vegetarian
+  halal
+  kosher
+  gluten_free
+  made_without_gluten
+  dairy_free
+  nut_free
+  low_sodium
+  low_carbon
+  locally_sourced
+  organic
+  plant_forward
+  spicy
+  other
+}
+
+enum AvailabilityStatus {
+  available
+  planned
+  sold_out
+  unavailable
+  unknown
+}
+
+enum FactSourceKind {
+  official
+  provider_derived
+  source_text
+  llm_estimated
+  unavailable
+}
+
+enum EstimateStatus {
+  pending
+  success
+  failed
+  skipped
+}
+
+model School {
+  id                String            @id
+  rank              Int
+  name              String
+  aliases           String[]          @default([])
+  city              String
+  state             String
+  timezone          String?
+  providerKind      ProviderKind
+  supportStatus     SupportStatus
+  integrationStatus IntegrationStatus
+  confidence        Confidence
+  sourceUrl         String
+  notes             String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  dataSources    DataSource[]
+  locations      Location[]
+  vendors        Vendor[]
+  serviceWindows ServiceWindow[]
+  menus          Menu[]
+  crawlRuns      CrawlRun[]
+
+  @@index([rank])
+  @@index([providerKind])
+  @@index([integrationStatus])
+}
+
+model DataSource {
+  id           String         @id
+  schoolId     String?
+  kind         DataSourceKind
+  providerKind ProviderKind?
+  name         String
+  sourceUrl    String
+  active       Boolean        @default(true)
+  notes        String?
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  school       School?       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  crawlRuns    CrawlRun[]
+  rawSnapshots RawSnapshot[]
+
+  @@index([schoolId])
+  @@index([kind])
+  @@index([providerKind])
+}
+
+model CrawlRun {
+  id            String         @id @default(cuid())
+  schoolId      String?
+  dataSourceId  String
+  status        CrawlRunStatus
+  startedAt     DateTime       @default(now())
+  completedAt   DateTime?
+  requestedDate DateTime?      @db.Date
+  usedDate      DateTime?      @db.Date
+  mode          String?
+  errorCode     String?
+  errorMessage  String?
+  snapshotHash  String?
+  metadata      Json?
+
+  school         School?         @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  dataSource     DataSource      @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  rawSnapshots   RawSnapshot[]
+  menus          Menu[]
+  serviceWindows ServiceWindow[]
+
+  @@index([schoolId])
+  @@index([dataSourceId])
+  @@index([status])
+  @@index([requestedDate])
+}
+
+model RawSnapshot {
+  id           String   @id @default(cuid())
+  dataSourceId String
+  crawlRunId   String?
+  contentType  String?
+  bodyHash     String
+  storagePath  String?
+  byteLength   Int?
+  capturedAt   DateTime @default(now())
+  metadata     Json?
+
+  dataSource DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  crawlRun   CrawlRun?  @relation(fields: [crawlRunId], references: [id], onDelete: SetNull)
+
+  @@index([dataSourceId])
+  @@index([crawlRunId])
+  @@index([bodyHash])
+}
+
+model Location {
+  id               String       @id
+  schoolId         String
+  sourceLocationId String?
+  type             LocationType @default(dining_hall)
+  name             String
+  address          String?
+  timezone         String?
+  latitude         Decimal?     @db.Decimal(9, 6)
+  longitude        Decimal?     @db.Decimal(9, 6)
+  sourceUrl        String?
+  active           Boolean      @default(true)
+  metadata         Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  menus          Menu[]
+  serviceWindows ServiceWindow[]
+
+  @@index([schoolId])
+  @@index([type])
+  @@index([sourceLocationId])
+}
+
+model Vendor {
+  id             String   @id
+  schoolId       String?
+  sourceVendorId String?
+  name           String
+  websiteUrl     String?
+  sourceUrl      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school         School?         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  serviceWindows ServiceWindow[]
+  menuItems      MenuItem[]
+
+  @@index([schoolId])
+  @@index([sourceVendorId])
+}
+
+model ServiceWindow {
+  id              String             @id @default(cuid())
+  schoolId        String
+  locationId      String
+  vendorId        String?
+  crawlRunId      String?
+  date            DateTime           @db.Date
+  meal            String?
+  startTime       String?
+  endTime         String?
+  status          AvailabilityStatus @default(planned)
+  sourceUrl       String
+  sourceUpdatedAt DateTime?
+  confidence      Confidence         @default(medium)
+  isEstimated     Boolean            @default(false)
+  metadata        Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  school   School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  location Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  vendor   Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  crawlRun CrawlRun? @relation(fields: [crawlRunId], references: [id], onDelete: SetNull)
+  menus    Menu[]
+
+  @@index([schoolId])
+  @@index([locationId])
+  @@index([vendorId])
+  @@index([date])
+}
+
+model Menu {
+  id               String       @id
+  schoolId         String
+  locationId       String
+  serviceWindowId  String?
+  crawlRunId       String?
+  providerKind     ProviderKind
+  date             DateTime     @db.Date
+  meal             String       @default("all")
+  sourceUrl        String
+  fetchedAt        DateTime
+  sourceUpdatedAt  DateTime?
+  freshnessMinutes Int?
+  metadata         Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  location      Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  serviceWindow ServiceWindow? @relation(fields: [serviceWindowId], references: [id], onDelete: SetNull)
+  crawlRun      CrawlRun?      @relation(fields: [crawlRunId], references: [id], onDelete: SetNull)
+  periods       MenuPeriod[]
+  items         MenuItem[]
+
+  @@unique([schoolId, locationId, date, meal])
+  @@index([schoolId])
+  @@index([locationId])
+  @@index([date])
+  @@index([providerKind])
+}
+
+model MenuPeriod {
+  id             String  @id
+  menuId         String
+  sourcePeriodId String?
+  name           String
+  startTime      String?
+  endTime        String?
+  sortOrder      Int     @default(0)
+
+  menu     Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  stations Station[]
+  items    MenuItem[]
+
+  @@index([menuId])
+}
+
+model Station {
+  id              String  @id
+  menuId          String
+  periodId        String
+  sourceStationId String?
+  name            String
+  sortOrder       Int     @default(0)
+
+  period MenuPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  items  MenuItem[]
+
+  @@index([menuId])
+  @@index([periodId])
+}
+
+model MenuItem {
+  id                     String             @id
+  schoolId               String
+  menuId                 String
+  periodId               String?
+  stationId              String?
+  vendorId               String?
+  sourceItemId           String?
+  name                   String
+  normalizedName         String?
+  description            String?
+  category               String?
+  cuisine                String?
+  servingSizeText        String?
+  portionText            String?
+  priceAmount            Decimal?           @db.Decimal(10, 2)
+  priceCurrency          String?
+  priceDisplayText       String?
+  availabilityStatus     AvailabilityStatus @default(unknown)
+  availabilityStartTime  String?
+  availabilityEndTime    String?
+  availabilitySourceText String?
+  sortOrder              Int                @default(0)
+  dietaryTags            DietaryTag[]       @default([])
+  ingredientStatement    String?
+  nutritionSource        FactSourceKind     @default(unavailable)
+  ingredientSource       FactSourceKind     @default(unavailable)
+  allergenSource         FactSourceKind     @default(unavailable)
+  isEstimated            Boolean            @default(false)
+  estimateLabel          String?
+  disclaimer             String?
+  imageUrl               String?
+  itemUrl                String?
+  sourceUrl              String
+  sourceUpdatedAt        DateTime?
+  confidence             Confidence         @default(high)
+  raw                    Json?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  menu        Menu             @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  period      MenuPeriod?      @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  station     Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  vendor      Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  nutrition   NutritionFact[]
+  ingredients IngredientFact[]
+  allergens   AllergenFact[]
+  estimates   EstimateRun[]
+
+  @@index([schoolId])
+  @@index([menuId])
+  @@index([periodId])
+  @@index([stationId])
+  @@index([vendorId])
+  @@index([sourceItemId])
+  @@index([name])
+  @@index([menuId, sortOrder])
+}
+
+model NutritionFact {
+  id                String         @id @default(cuid())
+  menuItemId        String
+  key               NutritionKey
+  label             String
+  amount            Float?
+  unit              NutritionUnit?
+  dailyValuePercent Float?
+  sourceText        String?
+  sourceKind        FactSourceKind @default(official)
+  isEstimated       Boolean        @default(false)
+  estimatedByModel  String?
+  confidence        Confidence     @default(high)
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@index([key])
+  @@index([sourceKind])
+}
+
+model IngredientFact {
+  id                   String         @id @default(cuid())
+  menuItemId           String
+  name                 String
+  normalizedName       String?
+  containsAllergenKeys AllergenKey[]  @default([])
+  sourceText           String?
+  sourceKind           FactSourceKind @default(official)
+  isEstimated          Boolean        @default(false)
+  estimatedByModel     String?
+  confidence           Confidence     @default(high)
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@index([name])
+  @@index([sourceKind])
+}
+
+model AllergenFact {
+  id               String         @id @default(cuid())
+  menuItemId       String
+  key              AllergenKey
+  label            String
+  status           AllergenStatus
+  sourceText       String?
+  sourceKind       FactSourceKind @default(official)
+  isEstimated      Boolean        @default(false)
+  estimatedByModel String?
+  confidence       Confidence     @default(high)
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@index([key])
+  @@index([status])
+  @@index([sourceKind])
+}
+
+model EstimateRun {
+  id            String         @id @default(cuid())
+  menuItemId    String?
+  model         String
+  promptVersion String
+  status        EstimateStatus
+  inputText     String
+  output        Json?
+  errorMessage  String?
+  createdAt     DateTime       @default(now())
+  completedAt   DateTime?
+
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([menuItemId])
+  @@index([model])
+  @@index([status])
+}

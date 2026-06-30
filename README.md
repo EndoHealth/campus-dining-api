@@ -19,9 +19,14 @@ https://github.com/EndoHealth/campus-dining-api
 
 ```bash
 npm install
+npm run db:migrate -- --name init
+npm run db:seed
 npm run dev
 npm test
 npm run build
+npm run db:import-collection -- data/collections/top50-live-menus-2026-06-30.json
+npm run crawl:menus
+npm run db:prune
 npm run collect:live
 npm run collect:max-data
 npm run verify:live
@@ -37,6 +42,8 @@ http://localhost:3400
 
 ```http
 GET /health
+GET /health/db
+GET /health/ready
 GET /
 GET /schools/:schoolId
 GET /v1/demo-summary
@@ -44,6 +51,7 @@ GET /v1/coverage
 GET /v1/schools?query=stanford&status=confirmed&provider=official_api
 GET /v1/schools/:schoolId
 GET /v1/schools/:schoolId/locations
+GET /v1/schools/:schoolId/service-windows?date=2026-06-30&type=food_truck
 GET /v1/schools/:schoolId/menus?date=2026-06-29&meal=lunch&locationId=...
 ```
 
@@ -56,11 +64,66 @@ tested.
 locations endpoint first when available, renders cafeteria tabs, and fetches
 only the active cafeteria's menu with `locationId`. Providers without a
 lightweight locations endpoint fall back to full-date menu data and build tabs
-from the returned normalized locations.
+from the returned normalized locations. The same page supports
+`?view=food-trucks`; that view fetches `service-windows` and renders public food
+truck schedule cards by date instead of cafeteria menu stations.
 
 Menu API responses are cached in memory for 30 minutes by school/date/meal/
-location and expose `X-Campus-Cache` plus `X-Campus-Cache-Age` headers. Provider
-errors use a shorter 5 minute cache.
+location and expose `X-Campus-Cache` plus `X-Campus-Cache-Age` headers. When
+`READ_MENUS_FROM_DB=true`, fresh Postgres rows can satisfy menu requests before
+provider fetches and responses include `X-Campus-Store: database`. Provider
+errors use a shorter 5 minute cache and can fall back to same-date stored rows
+with `X-Campus-Store: database_stale`.
+
+## Database
+
+Persistent storage uses Prisma 7 with Postgres. Local development defaults to
+the shared Docker Postgres on `localhost:5432`:
+
+```text
+postgresql://postgres:postgres@localhost:5432/campus_dining_api
+```
+
+`GET /health` stays DB-independent for fast process health checks.
+`GET /health/db` verifies the Prisma/Postgres connection. `GET /health/ready`
+checks DB connectivity plus the seeded school catalog. The schema stores
+schools, data sources, crawl runs, raw snapshot metadata, locations, vendors,
+service windows, menus, periods, stations, items, nutrition facts, ingredient
+facts, allergen facts, and future LLM estimate runs. Large raw provider bodies
+should be stored by path/hash metadata rather than as full database rows.
+
+Set `PERSIST_MENUS_TO_DB=true` to persist adapter-ready menu responses on cache
+misses. By default this is off so local API tests do not require a writable DB.
+Use `npm run db:import-collection -- <collection.json>` to backfill existing
+collection files into Postgres.
+
+Food trucks are modeled as `Location.type = food_truck` plus dated
+`ServiceWindow` rows. A schedule can exist without item-level menus or
+nutrition. If future enrichment estimates nutrition, the item or service window
+must stay explicitly labeled as estimated.
+
+Production mode should run with:
+
+```text
+PERSIST_MENUS_TO_DB=true
+READ_MENUS_FROM_DB=true
+FALLBACK_TO_STALE_DB_ON_PROVIDER_ERROR=true
+```
+
+`npm run crawl:menus` is the scheduled ingestion job. It writes one `CrawlRun`
+per school, persists adapter-ready menus, and exits non-zero only when failures
+exceed `CRAWL_MAX_FAILURES`. Useful scheduler env:
+
+```text
+CRAWL_DATE=2026-06-30
+CRAWL_SCHOOLS=princeton,yale
+CRAWL_CONCURRENCY=2
+FETCH_ATTEMPTS=3
+```
+
+`npm run db:prune` removes old menus and crawl metadata according to
+`MENU_RETENTION_DAYS` and `CRAWL_RUN_RETENTION_DAYS`. Use `PRUNE_DRY_RUN=true`
+before enabling destructive pruning in a new environment.
 
 ## Deployment
 
@@ -79,7 +142,32 @@ com.endohealth.campus-dining-tunnel
 ```
 
 No `.env` or collected JSON data is committed. Use `.env.example` for local
-runtime defaults.
+runtime defaults. Production and Mac mini deploys must set `DATABASE_URL`
+explicitly before enabling DB read/write flags.
+
+Production rollout order:
+
+```bash
+npm ci
+npm run db:deploy
+npm run db:seed
+npm run build
+npm start
+```
+
+After build, a runtime-only install can omit dev dependencies as long as the
+generated Prisma client and compiled `dist/` output are already present:
+
+```bash
+npm ci --omit=dev
+npm start
+```
+
+Current `npm audit --omit=dev` reports a moderate advisory through Prisma
+CLI's internal `@prisma/dev` dependency. The latest stable Prisma package is
+already installed; the automated audit fix downgrades Prisma across a breaking
+major version, so it is not applied here. Keep Prisma updated when a patched
+stable release is available.
 
 ## Current Live Coverage
 

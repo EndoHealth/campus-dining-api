@@ -911,6 +911,32 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       box-shadow: var(--shadow-panel);
       backdrop-filter: blur(18px);
     }
+    .viewSwitch {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      min-height: 46px;
+      padding: 4px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.06);
+      box-shadow: var(--shadow-border);
+    }
+    .viewButton {
+      min-height: 38px;
+      border-radius: var(--radius-sm);
+      box-shadow: none;
+      background: transparent;
+      color: var(--muted);
+      transition-property: background-color, color, box-shadow, scale;
+    }
+    .viewButton[aria-selected="true"] {
+      color: var(--lime);
+      background: rgba(216,255,100,.13);
+      box-shadow:
+        0 0 0 1px rgba(216,255,100,.24),
+        0 0 20px rgba(216,255,100,.08);
+    }
     .layout {
       display: grid;
       grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
@@ -1108,6 +1134,65 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       text-align: right;
       white-space: nowrap;
     }
+    .serviceList {
+      display: grid;
+      gap: 12px;
+    }
+    .serviceWindow {
+      display: grid;
+      grid-template-columns: minmax(88px, 120px) minmax(0, 1fr);
+      gap: 14px;
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.045);
+      box-shadow: var(--shadow-border);
+    }
+    .serviceTime {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 64px;
+      border-radius: var(--radius-sm);
+      background: rgba(8,10,15,.58);
+      color: var(--lime);
+      text-align: center;
+      font-weight: 780;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }
+    .serviceTime span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 640;
+      text-transform: uppercase;
+    }
+    .serviceWindow h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .serviceMeta {
+      margin-top: 5px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .sourceLink {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      margin-top: 10px;
+      color: var(--blue);
+      text-decoration: none;
+    }
+    .sourceLink:hover { color: var(--lime); }
+    .emptyState {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,.045);
+      box-shadow: var(--shadow-border);
+    }
+    .emptyState h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
     .stagger {
       opacity: 0;
       transform: translateY(12px);
@@ -1146,6 +1231,8 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       .tabButton { min-height: 42px; }
       .item { grid-template-columns: 1fr; }
       .itemMeta { text-align: left; white-space: normal; }
+      .serviceWindow { grid-template-columns: 1fr; }
+      .serviceTime { align-items: flex-start; padding: 12px; text-align: left; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -1184,6 +1271,10 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
           <button id="prevDay">Previous day</button>
           <button id="today">Today</button>
           <button id="nextDay">Next day</button>
+          <div class="viewSwitch" role="tablist" aria-label="Dining data type">
+            <button class="viewButton" data-view="dining" role="tab" aria-selected="true">Dining halls</button>
+            <button class="viewButton" data-view="food-trucks" role="tab" aria-selected="false">Food trucks</button>
+          </div>
         </div>
       </section>
       <section class="layout">
@@ -1231,9 +1322,11 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
     const summary = document.querySelector('#summary');
     const locationTabs = document.querySelector('#locationTabs');
     const menuBody = document.querySelector('#menuBody');
+    const viewButtons = Array.from(document.querySelectorAll('[data-view]'));
     const browserMenuCache = new Map();
     let locationOptions = [];
     let activeLocationId = '';
+    let activeView = new URLSearchParams(window.location.search).get('view') === 'food-trucks' ? 'food-trucks' : 'dining';
     let latestMenu = null;
     let requestSeq = 0;
     let selectedDate = new Date();
@@ -1274,6 +1367,36 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
         .join('');
     }
 
+    function syncViewButtons() {
+      viewButtons.forEach((button) => {
+        button.setAttribute('aria-selected', String(button.dataset.view === activeView));
+      });
+    }
+
+    function updateViewUrl() {
+      const url = new URL(window.location.href);
+      if (activeView === 'food-trucks') {
+        url.searchParams.set('view', 'food-trucks');
+      } else {
+        url.searchParams.delete('view');
+      }
+      window.history.replaceState({}, '', url);
+    }
+
+    function setActiveView(view) {
+      if (activeView === view) return;
+      activeView = view;
+      requestSeq += 1;
+      syncViewButtons();
+      updateViewUrl();
+      if (activeView === 'food-trucks') {
+        locationTabs.innerHTML = '';
+      } else {
+        renderKnownTabs();
+      }
+      fetchCurrentView();
+    }
+
     function renderCalendar() {
       monthLabel.textContent = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
       selectedLabel.textContent = displayDate(selectedDate);
@@ -1302,6 +1425,14 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       selectedDate = date;
       visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1);
       renderCalendar();
+      fetchCurrentView();
+    }
+
+    function fetchCurrentView() {
+      if (activeView === 'food-trucks') {
+        fetchFoodTruckSchedule();
+        return;
+      }
       fetchMenu();
     }
 
@@ -1311,6 +1442,17 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
         ['Periods', values.periods],
         ['Items', values.items],
         ['With nutrition', values.nutrition],
+      ]
+        .map(([label, value]) => '<div><b>' + value.toLocaleString() + '</b><span>' + label + '</span></div>')
+        .join('');
+    }
+
+    function renderFoodTruckSummary(values) {
+      summary.innerHTML = [
+        ['Vendors', values.vendors],
+        ['Stops', values.serviceWindows],
+        ['Menu items', values.items],
+        ['Estimated', values.estimated],
       ]
         .map(([label, value]) => '<div><b>' + value.toLocaleString() + '</b><span>' + label + '</span></div>')
         .join('');
@@ -1415,7 +1557,84 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       renderSelectedLocation(menu);
     }
 
+    function formatTimeWindow(window) {
+      if (window.startTime && window.endTime) return window.startTime + '–' + window.endTime;
+      if (window.startTime) return window.startTime;
+      if (window.endTime) return 'Until ' + window.endTime;
+      return 'Time TBA';
+    }
+
+    function renderFoodTruckSchedule(serviceWindows, result) {
+      const summaryValues = result.summary ?? {
+        serviceWindows: serviceWindows.length,
+        vendors: new Set(serviceWindows.map((window) => window.vendor?.id).filter(Boolean)).size,
+        locations: new Set(serviceWindows.map((window) => window.location.id)).size,
+        estimated: serviceWindows.filter((window) => window.isEstimated).length,
+        items: serviceWindows.reduce((total, window) => total + window.itemCount, 0),
+      };
+      renderFoodTruckSummary(summaryValues);
+      locationTabs.innerHTML = '';
+      menuState.className = serviceWindows.length ? 'state' : 'state pending';
+      menuState.textContent = serviceWindows.length ? 'ready' : 'source limited';
+      cacheHint.textContent = result.source === 'database' ? 'database' : '';
+
+      if (!serviceWindows.length) {
+        menuBody.innerHTML =
+          '<div class="emptyState">' +
+            '<h3>No food truck schedule stored for this date</h3>' +
+            '<p class="message">This view only shows public food truck service windows that have been collected into Postgres. Cafeteria menus may still be available for this date.</p>' +
+          '</div>';
+        return;
+      }
+
+      menuBody.innerHTML = '<div class="serviceList">' + serviceWindows.map((window) => {
+        const vendorName = window.vendor?.name ?? 'Campus food vendor';
+        const locationParts = [window.location.name, window.location.address].filter(Boolean).join(' · ');
+        const tags = [
+          window.itemCount ? window.itemCount.toLocaleString() + ' menu items' : 'Schedule only',
+          window.isEstimated ? 'Estimated' : 'Public source',
+          window.confidence + ' confidence',
+        ];
+        return '<article class="serviceWindow">' +
+          '<div class="serviceTime">' + escapeHtml(formatTimeWindow(window)) + '<span>' + escapeHtml(window.status) + '</span></div>' +
+          '<div>' +
+            '<h3>' + escapeHtml(vendorName) + '</h3>' +
+            '<div class="serviceMeta">' + escapeHtml(locationParts || window.location.type.replace('_', ' ')) + '</div>' +
+            '<div class="tags">' + tags.map((tag) => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' +
+            '<a class="sourceLink" href="' + escapeHtml(window.sourceUrl) + '" target="_blank" rel="noreferrer">Source</a>' +
+          '</div>' +
+        '</article>';
+      }).join('') + '</div>';
+    }
+
+    async function fetchFoodTruckSchedule() {
+      const date = isoDate(selectedDate);
+      const requestId = ++requestSeq;
+      menuTitle.textContent = displayDate(selectedDate);
+      renderMessage('loading', 'Fetching food truck service windows for ' + date + '...', '');
+      locationTabs.innerHTML = '';
+
+      try {
+        const response = await fetch('/v1/schools/' + encodeURIComponent(school.id) + '/service-windows?date=' + date + '&type=food_truck');
+        const body = await response.json();
+        if (requestId !== requestSeq) return;
+        if (!response.ok || body.result?.state !== 'adapter_ready') {
+          const reason = body.result?.reason || body.result?.error || body.error || 'Food truck schedule data is not available.';
+          renderMessage('blocked', reason, 'pending');
+          return;
+        }
+        renderFoodTruckSchedule(body.result.serviceWindows ?? [], body.result);
+      } catch (error) {
+        if (requestId !== requestSeq) return;
+        renderMessage('error', error instanceof Error ? error.message : 'Food truck schedule fetch failed.', 'pending');
+      }
+    }
+
     async function fetchMenu() {
+      if (activeView === 'food-trucks') {
+        fetchFoodTruckSchedule();
+        return;
+      }
       const date = isoDate(selectedDate);
       if (!activeLocationId && locationOptions.length) {
         activeLocationId = locationOptions[0].id;
@@ -1472,7 +1691,12 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
 
     renderSchoolOptions();
     renderCalendar();
-    fetchLocationOptions().finally(fetchMenu);
+    syncViewButtons();
+    if (activeView === 'food-trucks') {
+      fetchFoodTruckSchedule();
+    } else {
+      fetchLocationOptions().finally(fetchMenu);
+    }
 
     select.addEventListener('change', () => {
       window.location.href = '/schools/' + encodeURIComponent(select.value);
@@ -1484,6 +1708,7 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       setSelectedDate(new Date(year, month - 1, day));
     });
     locationTabs.addEventListener('click', (event) => {
+      if (activeView === 'food-trucks') return;
       const button = event.target.closest('[data-location-id]');
       if (!button) return;
       activeLocationId = button.dataset.locationId;
@@ -1492,6 +1717,9 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
         return;
       }
       if (latestMenu) renderSelectedLocation(latestMenu);
+    });
+    viewButtons.forEach((button) => {
+      button.addEventListener('click', () => setActiveView(button.dataset.view));
     });
     document.querySelector('#prevMonth').addEventListener('click', () => {
       visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);

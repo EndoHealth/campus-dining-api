@@ -1,8 +1,10 @@
 import type { MenuQuery, NormalizedMenu, ProviderKind, SchoolCoverage } from '../types/dining.js';
+import type { LocationType } from '../types/dining.js';
 
 export type ProviderLocationSummary = {
   id: string;
   name: string;
+  type?: LocationType;
   sourceLocationId?: string;
   address?: string;
   timezone?: string;
@@ -14,6 +16,9 @@ export type ProviderFetchResult =
       provider: ProviderKind;
       fetchedAt: string;
       sourceUrl: string;
+      servedFrom?: 'provider' | 'database' | 'database_stale';
+      isStale?: boolean;
+      warnings?: string[];
       data: NormalizedMenu;
     }
   | {

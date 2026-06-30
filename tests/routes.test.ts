@@ -27,6 +27,8 @@ describe('routes', () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain('Princeton University Dining Calendar');
+    expect(body).toContain('Food trucks');
+    expect(body).toContain('/service-windows?date=');
     expect(body).toContain("fetch('/v1/schools/' + encodeURIComponent(school.id) + '/locations')");
     expect(body).toContain("locationId=' + encodeURIComponent(activeLocationId)");
     expect(body).toContain('fetchLocationOptions().finally(fetchMenu)');
