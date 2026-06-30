@@ -3,6 +3,18 @@
 Hono service for discovering US university dining menu coverage and serving a
 stable API surface for provider-specific menu adapters.
 
+Live demo:
+
+```text
+https://campus-dining.endohealth.ai
+```
+
+GitHub:
+
+```text
+https://github.com/EndoHealth/campus-dining-api
+```
+
 ## Commands
 
 ```bash
@@ -25,6 +37,8 @@ http://localhost:3400
 
 ```http
 GET /health
+GET /
+GET /v1/demo-summary
 GET /v1/coverage
 GET /v1/schools?query=stanford&status=confirmed&provider=official_api
 GET /v1/schools/:schoolId
@@ -35,6 +49,25 @@ Menu routes are intentionally adapter-gated. A school can be listed as
 `confirmed` for source availability while live normalized menu fetching remains
 `adapter_pending` until a stable direct provider fetch path is implemented and
 tested.
+
+## Deployment
+
+The demo is deployed on the Mac mini at:
+
+```text
+/Users/ops/Projects/campus-dining-api
+```
+
+Runtime is `PORT=3410` behind a Cloudflare Tunnel for
+`campus-dining.endohealth.ai`. `launchd` jobs:
+
+```text
+com.endohealth.campus-dining-api
+com.endohealth.campus-dining-tunnel
+```
+
+No `.env` or collected JSON data is committed. Use `.env.example` for local
+runtime defaults.
 
 ## Current Live Coverage
 
