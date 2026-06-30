@@ -90,19 +90,56 @@ export function renderHomePage() {
       --lime: #d8ff64;
       --orange: #ff9f43;
       --green: #54e18a;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+      --shadow-border: 0 0 0 1px rgba(255,255,255,.10);
+      --shadow-border-hover: 0 0 0 1px rgba(255,255,255,.18);
+      --shadow-panel:
+        0 0 0 1px rgba(255,255,255,.10),
+        0 24px 70px rgba(0,0,0,.42),
+        0 8px 20px rgba(0,0,0,.25);
     }
     * { box-sizing: border-box; }
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
     body {
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--ink);
+      font-variant-numeric: tabular-nums;
     }
+    h1, h2, h3 { text-wrap: balance; }
+    p, span, td, th, input, button, a { text-wrap: pretty; }
     .shell {
+      position: relative;
       min-height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--bg);
+    }
+    .shell::before,
+    .shell::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -2;
+    }
+    .shell::before {
+      background: url("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1800&q=82") center/cover no-repeat;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+      filter: saturate(1.08) contrast(1.02);
+    }
+    .shell::after {
+      z-index: -1;
       background:
-        linear-gradient(90deg, rgba(8,10,15,.96) 0%, rgba(8,10,15,.72) 48%, rgba(8,10,15,.88) 100%),
-        url("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1800&q=82") center/cover fixed;
+        linear-gradient(90deg, rgba(8,10,15,.98) 0%, rgba(8,10,15,.75) 48%, rgba(8,10,15,.9) 100%),
+        linear-gradient(180deg, rgba(8,10,15,.35) 0%, rgba(8,10,15,.64) 58%, #080a0f 100%);
     }
     header {
       display: flex;
@@ -118,13 +155,16 @@ export function renderHomePage() {
       align-items: center;
       gap: 10px;
       font-weight: 780;
+      min-height: 44px;
     }
     .mark {
       width: 34px;
       height: 34px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       background: conic-gradient(from 120deg, var(--blue), var(--lime), var(--orange), var(--pink), var(--blue));
-      box-shadow: 0 0 30px rgba(67,215,255,.45);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.16),
+        0 0 30px rgba(67,215,255,.45);
     }
     nav {
       display: flex;
@@ -134,16 +174,26 @@ export function renderHomePage() {
     }
     nav a, button {
       appearance: none;
-      border: 1px solid var(--line);
+      border: 0;
       background: rgba(255,255,255,.08);
       color: var(--ink);
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       padding: 10px 13px;
+      min-height: 42px;
       font: inherit;
       cursor: pointer;
       text-decoration: none;
+      box-shadow: var(--shadow-border);
+      transition-property: background-color, box-shadow, scale;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(.2,0,0,1);
     }
-    nav a:hover, button:hover { border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.13); }
+    nav a:hover, button:hover { background: rgba(255,255,255,.13); box-shadow: var(--shadow-border-hover); }
+    nav a:active, button:active { scale: .96; }
+    nav a:focus-visible, button:focus-visible, input:focus-visible {
+      outline: 2px solid rgba(67,215,255,.86);
+      outline-offset: 3px;
+    }
     main {
       max-width: 1220px;
       margin: 0 auto;
@@ -163,6 +213,16 @@ export function renderHomePage() {
       min-width: 0;
       padding: 20px 0 42px;
     }
+    .stagger {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(4px);
+      animation: enterUp 420ms cubic-bezier(.2,0,0,1) forwards;
+    }
+    .stagger:nth-child(1) { animation-delay: 0ms; }
+    .stagger:nth-child(2) { animation-delay: 90ms; }
+    .stagger:nth-child(3) { animation-delay: 180ms; }
+    .stagger:nth-child(4) { animation-delay: 270ms; }
     .eyebrow {
       color: var(--lime);
       font-weight: 760;
@@ -189,20 +249,20 @@ export function renderHomePage() {
       margin: 24px 0 0;
     }
     .pill {
-      border: 1px solid var(--line);
+      border: 0;
       background: rgba(0,0,0,.35);
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       padding: 10px 12px;
       color: #eff4ff;
+      box-shadow: var(--shadow-border);
     }
     .panel {
       align-self: center;
-      border: 1px solid var(--line);
       background: var(--panel);
       backdrop-filter: blur(18px);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      box-shadow: 0 30px 80px rgba(0,0,0,.45);
+      box-shadow: var(--shadow-panel);
       min-width: 0;
     }
     .panelHead {
@@ -244,10 +304,10 @@ export function renderHomePage() {
     .metric:nth-child(4) b { color: var(--pink); }
     .board {
       margin-top: 22px;
-      border: 1px solid var(--line);
       background: rgba(8,10,15,.9);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       overflow: hidden;
+      box-shadow: var(--shadow-panel);
     }
     .toolbar {
       display: grid;
@@ -259,11 +319,20 @@ export function renderHomePage() {
     input {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       background: rgba(255,255,255,.08);
       color: var(--ink);
       padding: 11px 12px;
+      min-height: 42px;
       font: inherit;
+      transition-property: background-color, border-color, box-shadow;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(.2,0,0,1);
+    }
+    input:focus {
+      border-color: rgba(67,215,255,.5);
+      background: rgba(255,255,255,.11);
+      box-shadow: 0 0 0 4px rgba(67,215,255,.10);
     }
     .tableWrap { overflow-x: auto; }
     table {
@@ -284,10 +353,15 @@ export function renderHomePage() {
       text-transform: uppercase;
     }
     td.num {
-      font-variant-numeric: tabular-nums;
       color: #ffffff;
       white-space: nowrap;
     }
+    tr {
+      transition-property: background-color;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(.2,0,0,1);
+    }
+    tbody tr:hover { background: rgba(255,255,255,.035); }
     .muted { color: var(--muted); }
     .bar {
       height: 7px;
@@ -300,21 +374,47 @@ export function renderHomePage() {
       display: block;
       height: 100%;
       background: linear-gradient(90deg, var(--blue), var(--lime));
+      transition-property: width;
+      transition-duration: 220ms;
+      transition-timing-function: cubic-bezier(.2,0,0,1);
     }
     .bands {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 18px;
+      gap: 1px;
+      margin: 18px;
+      background: var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
     }
     .band {
-      border: 1px solid var(--line);
       background: rgba(8,10,15,.74);
-      border-radius: 8px;
       padding: 16px;
     }
     .band h3 { margin: 0 0 8px; font-size: 16px; }
     .band p { margin: 0; color: var(--muted); line-height: 1.45; }
+    button[aria-pressed="true"] {
+      background: rgba(216,255,100,.14);
+      color: var(--lime);
+      box-shadow:
+        0 0 0 1px rgba(216,255,100,.34),
+        0 0 24px rgba(216,255,100,.08);
+    }
+    .state {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: #080a0f;
+      background: var(--lime);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+    .state.partial { color: #090b10; background: var(--orange); }
+    .state.pending { color: #fff; background: var(--pink); }
     footer {
       max-width: 1220px;
       margin: 0 auto;
@@ -322,13 +422,68 @@ export function renderHomePage() {
       color: var(--muted);
       font-size: 13px;
     }
+    @keyframes enterUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+      }
+    }
     @media (max-width: 860px) {
       header { align-items: flex-start; }
       .hero { grid-template-columns: 1fr; min-height: auto; }
       .lead { padding-top: 20px; }
       .toolbar { grid-template-columns: 1fr; }
       .bands { grid-template-columns: 1fr; }
+      .panel { border-radius: var(--radius-lg); }
       nav { display: none; }
+    }
+    @media (max-width: 620px) {
+      header, main, footer { padding-left: 14px; padding-right: 14px; }
+      h1 { font-size: clamp(44px, 12vw, 54px); }
+      .panelHead { align-items: flex-start; }
+      .score { grid-template-columns: 1fr 1fr; }
+      .metric { padding: 16px 14px; }
+      table { min-width: 0; }
+      thead { display: none; }
+      tbody, tr, td { display: block; }
+      tr {
+        padding: 14px;
+        border-bottom: 1px solid rgba(255,255,255,.08);
+      }
+      td {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        border-bottom: 0;
+        padding: 5px 0;
+      }
+      td:first-child {
+        display: block;
+        padding-bottom: 9px;
+      }
+      td:first-child::before { display: none; }
+      td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+      td.num { white-space: normal; }
+      .bar { width: 88px; margin-left: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+      .stagger {
+        opacity: 1;
+        transform: none;
+        filter: none;
+      }
     }
   </style>
 </head>
@@ -345,10 +500,10 @@ export function renderHomePage() {
     <main>
       <section class="hero">
         <div class="lead">
-          <div class="eyebrow">Top 50 campus menus, normalized</div>
-          <h1>The dining hall data layer colleges forgot to ship.</h1>
-          <p class="sub">Menus, cafeterias, nutrition facts, ingredients, allergens, and dietary labels pulled into one clean API surface. Built from public university dining sources.</p>
-          <div class="ticker">
+          <div class="eyebrow stagger">Top 50 campus menus, normalized</div>
+          <h1 class="stagger">The dining hall data layer colleges forgot to ship.</h1>
+          <p class="sub stagger">Menus, cafeterias, nutrition facts, ingredients, allergens, and dietary labels pulled into one clean API surface. Built from public university dining sources.</p>
+          <div class="ticker stagger">
             <span class="pill">47 schools live</span>
             <span class="pill">168 cafeterias</span>
             <span class="pill">19,524 menu items</span>
@@ -376,8 +531,8 @@ export function renderHomePage() {
       <section class="board" id="board">
         <div class="toolbar">
           <input id="search" placeholder="Search schools, cafeterias, or providers" />
-          <button data-filter="rich">Rich</button>
-          <button data-filter="all">All</button>
+          <button data-filter="rich" aria-pressed="true">Rich</button>
+          <button data-filter="all" aria-pressed="false">All</button>
         </div>
         <div class="tableWrap">
           <table>
@@ -389,7 +544,7 @@ export function renderHomePage() {
                 <th>Nutrition</th>
                 <th>Ingredients</th>
                 <th>Allergens</th>
-                <th>Dining Locations</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -401,7 +556,32 @@ export function renderHomePage() {
   </div>
   <script>
     const snapshot = ${snapshotJson};
-    const rows = snapshot.richSchools;
+    const richRows = snapshot.richSchools.map((row) => ({ ...row, state: 'rich', note: row.locations }));
+    const partialRows = snapshot.partialSchools.map((row) => ({
+      name: row.name,
+      cafeterias: row.cafeterias,
+      items: 0,
+      nutrition: 0,
+      ingredients: 0,
+      allergens: 0,
+      dietary: 0,
+      locations: row.note,
+      state: 'partial',
+      note: row.note,
+    }));
+    const pendingRows = snapshot.pendingSchools.map((name) => ({
+      name,
+      cafeterias: 0,
+      items: 0,
+      nutrition: 0,
+      ingredients: 0,
+      allergens: 0,
+      dietary: 0,
+      locations: 'DineOnCampus direct fetch blocked by Cloudflare 403',
+      state: 'pending',
+      note: 'Adapter pending',
+    }));
+    const allRows = [...richRows, ...partialRows, ...pendingRows];
     const tbody = document.querySelector('#rows');
     const search = document.querySelector('#search');
     let activeFilter = 'rich';
@@ -410,22 +590,41 @@ export function renderHomePage() {
       return total ? Math.round((value / total) * 100) : 0;
     }
 
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[char]);
+    }
+
+    function formatCount(value) {
+      return value ? value.toLocaleString() : '<span class="muted">source-limited</span>';
+    }
+
     function render() {
       const query = search.value.trim().toLowerCase();
-      const visible = rows.filter((row) => {
-        const text = [row.name, row.locations].join(' ').toLowerCase();
+      const sourceRows = activeFilter === 'rich' ? richRows : allRows;
+      const visible = sourceRows.filter((row) => {
+        const text = [row.name, row.locations, row.note, row.state].join(' ').toLowerCase();
         return !query || text.includes(query);
       });
       tbody.innerHTML = visible.map((row) => {
         const coverage = pct(row.nutrition, row.items);
+        const stateLabel = row.state === 'rich' ? 'rich' : row.state === 'partial' ? 'partial' : 'pending';
+        const nutritionCell = row.items
+          ? row.nutrition.toLocaleString() + '<div class="bar"><i style="width:' + coverage + '%"></i></div>'
+          : '<span class="muted">not published</span>';
         return '<tr>' +
-          '<td><strong>' + row.name + '</strong><div class="muted">' + row.locations + '</div></td>' +
-          '<td class="num">' + row.cafeterias + '</td>' +
-          '<td class="num">' + row.items.toLocaleString() + '</td>' +
-          '<td class="num">' + row.nutrition.toLocaleString() + '<div class="bar"><i style="width:' + coverage + '%"></i></div></td>' +
-          '<td class="num">' + row.ingredients.toLocaleString() + '</td>' +
-          '<td class="num">' + row.allergens.toLocaleString() + '</td>' +
-          '<td><span class="muted">' + row.locations + '</span></td>' +
+          '<td><strong>' + escapeHtml(row.name) + '</strong><div class="muted">' + escapeHtml(row.locations) + '</div></td>' +
+          '<td class="num" data-label="Cafeterias">' + formatCount(row.cafeterias) + '</td>' +
+          '<td class="num" data-label="Items">' + formatCount(row.items) + '</td>' +
+          '<td class="num" data-label="Nutrition">' + nutritionCell + '</td>' +
+          '<td class="num" data-label="Ingredients">' + formatCount(row.ingredients) + '</td>' +
+          '<td class="num" data-label="Allergens">' + formatCount(row.allergens) + '</td>' +
+          '<td data-label="Status"><span class="state ' + stateLabel + '">' + stateLabel + '</span></td>' +
         '</tr>';
       }).join('');
     }
@@ -434,7 +633,9 @@ export function renderHomePage() {
     document.querySelectorAll('[data-filter]').forEach((button) => {
       button.addEventListener('click', () => {
         activeFilter = button.dataset.filter;
-        if (activeFilter === 'all') search.value = '';
+        document.querySelectorAll('[data-filter]').forEach((item) => {
+          item.setAttribute('aria-pressed', String(item === button));
+        });
         render();
       });
     });
