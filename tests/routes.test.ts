@@ -58,6 +58,10 @@ describe('routes', () => {
       expect(body.school.id).toBe('princeton');
       expect(body.result.state).toBe('adapter_ready');
       expect(body.result.data.locations[0].periods[0].stations[0].items[0].nutrition.length).toBeGreaterThan(0);
+
+      const cachedResponse = await app.request('/v1/schools/princeton/menus?date=2026-06-29&meal=lunch');
+      expect(cachedResponse.status).toBe(200);
+      expect(cachedResponse.headers.get('X-Campus-Cache')).toBe('HIT');
     },
     15000
   );

@@ -52,7 +52,12 @@ Menu routes are intentionally adapter-gated. A school can be listed as
 tested.
 
 `GET /schools/:schoolId` renders a school-level calendar UI. It uses the live
-menu endpoint client-side when a user selects a date.
+menu endpoint client-side when a user selects a date and renders cafeteria tabs
+from the returned locations.
+
+Menu API responses are cached in memory for 30 minutes by school/date/meal/
+location and expose `X-Campus-Cache` plus `X-Campus-Cache-Age` headers. Provider
+errors use a shorter 5 minute cache.
 
 ## Deployment
 

@@ -1009,6 +1009,33 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       letter-spacing: .02em;
     }
     .state.pending { color: #fff; background: var(--pink); }
+    .cacheHint {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .locationTabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      scrollbar-width: thin;
+    }
+    .locationTabs:empty { display: none; }
+    .tabButton {
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 9px 12px;
+      white-space: nowrap;
+    }
+    .tabButton[aria-selected="true"] {
+      background: rgba(216,255,100,.14);
+      color: var(--lime);
+      box-shadow:
+        0 0 0 1px rgba(216,255,100,.34),
+        0 0 24px rgba(216,255,100,.08);
+    }
     .menuBody { padding: 16px; }
     .message {
       margin: 0;
@@ -1115,6 +1142,8 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       .controls { grid-template-columns: 1fr; }
       .summary { grid-template-columns: 1fr 1fr; }
       .day { min-height: 48px; }
+      .locationTabs { padding: 10px 12px; }
+      .tabButton { min-height: 42px; }
       .item { grid-template-columns: 1fr; }
       .itemMeta { text-align: left; white-space: normal; }
     }
@@ -1176,9 +1205,13 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
         <section class="panel">
           <div class="panelHead">
             <h2 id="menuTitle">Selected date</h2>
-            <span class="state" id="menuState">loading</span>
+            <div>
+              <span class="state" id="menuState">loading</span>
+              <span class="cacheHint" id="cacheHint"></span>
+            </div>
           </div>
           <div class="summary" id="summary"></div>
+          <div class="locationTabs" id="locationTabs" role="tablist" aria-label="Cafeterias"></div>
           <div class="menuBody" id="menuBody"><p class="message">Loading menu...</p></div>
         </section>
       </section>
@@ -1194,8 +1227,14 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
     const selectedLabel = document.querySelector('#selectedLabel');
     const menuTitle = document.querySelector('#menuTitle');
     const menuState = document.querySelector('#menuState');
+    const cacheHint = document.querySelector('#cacheHint');
     const summary = document.querySelector('#summary');
+    const locationTabs = document.querySelector('#locationTabs');
     const menuBody = document.querySelector('#menuBody');
+    const browserMenuCache = new Map();
+    let activeLocationId = '';
+    let latestMenu = null;
+    let requestSeq = 0;
     let selectedDate = new Date();
     let visibleMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 
@@ -1279,7 +1318,9 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
     function renderMessage(label, body, stateClass = 'pending') {
       menuState.className = 'state ' + stateClass;
       menuState.textContent = label;
+      cacheHint.textContent = '';
       summary.innerHTML = '';
+      locationTabs.innerHTML = '';
       menuBody.innerHTML = '<p class="message">' + escapeHtml(body) + '</p>';
     }
 
@@ -1294,7 +1335,53 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       return parts.join(' · ');
     }
 
-    function renderMenu(menu) {
+    function renderTabs(menu) {
+      locationTabs.innerHTML = menu.locations.map((location) => {
+        const itemCount = location.periods.flatMap((period) => period.stations.flatMap((station) => station.items)).length;
+        return '<button class="tabButton" role="tab" aria-selected="' + String(location.id === activeLocationId) + '" data-location-id="' + escapeHtml(location.id) + '">' +
+          escapeHtml(location.name) + ' · ' + itemCount.toLocaleString() +
+        '</button>';
+      }).join('');
+    }
+
+    function renderSelectedLocation(menu) {
+      const location = menu.locations.find((candidate) => candidate.id === activeLocationId) ?? menu.locations[0];
+      if (!location) {
+        menuBody.innerHTML = '<p class="message">No cafeterias were published by this source for the selected date.</p>';
+        return;
+      }
+      activeLocationId = location.id;
+      renderTabs(menu);
+      const locationItems = location.periods.flatMap((period) => period.stations.flatMap((station) => station.items));
+      menuBody.innerHTML = '<article class="location">' +
+        '<div class="locationHead"><h3>' + escapeHtml(location.name) + '</h3><span class="muted">' + locationItems.length.toLocaleString() + ' items</span></div>' +
+        location.periods.map((period) => (
+          '<section class="period"><h4>' + escapeHtml(period.name) + '</h4>' +
+          period.stations.map((station) => {
+            const stationItems = station.items.slice(0, 36);
+            const hidden = station.items.length - stationItems.length;
+            return '<div class="station">' +
+              '<div class="stationTitle"><strong>' + escapeHtml(station.name) + '</strong><span>' + station.items.length.toLocaleString() + ' items</span></div>' +
+              stationItems.map((item) => {
+                const tags = [...item.dietaryTags.slice(0, 4), ...item.allergens.slice(0, 3).map((allergen) => allergen.label)];
+                const meta = itemMeta(item);
+                return '<div class="item">' +
+                  '<div><div class="itemName">' + escapeHtml(item.name) + '</div>' +
+                  (tags.length ? '<div class="tags">' + tags.map((tag) => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' : '') +
+                  '</div>' +
+                  '<div class="itemMeta">' + escapeHtml(meta || item.availability.status) + '</div>' +
+                '</div>';
+              }).join('') +
+              (hidden > 0 ? '<p class="message">+' + hidden.toLocaleString() + ' more items in this station.</p>' : '') +
+            '</div>';
+          }).join('') +
+          '</section>'
+        )).join('') +
+      '</article>';
+    }
+
+    function renderMenu(menu, cacheLabel = '') {
+      latestMenu = menu;
       const items = countItems(menu);
       const periods = menu.locations.reduce((total, location) => total + location.periods.length, 0);
       renderSummary({
@@ -1305,54 +1392,47 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       });
       menuState.className = 'state';
       menuState.textContent = 'ready';
+      cacheHint.textContent = cacheLabel;
       if (!items.length) {
+        locationTabs.innerHTML = '';
         menuBody.innerHTML = '<p class="message">No menu items were published by this source for the selected date.</p>';
         return;
       }
-      menuBody.innerHTML = menu.locations.map((location) => {
-        const locationItems = location.periods.flatMap((period) => period.stations.flatMap((station) => station.items));
-        return '<article class="location">' +
-          '<div class="locationHead"><h3>' + escapeHtml(location.name) + '</h3><span class="muted">' + locationItems.length.toLocaleString() + ' items</span></div>' +
-          location.periods.map((period) => (
-            '<section class="period"><h4>' + escapeHtml(period.name) + '</h4>' +
-            period.stations.map((station) => {
-              const stationItems = station.items.slice(0, 24);
-              const hidden = station.items.length - stationItems.length;
-              return '<div class="station">' +
-                '<div class="stationTitle"><strong>' + escapeHtml(station.name) + '</strong><span>' + station.items.length.toLocaleString() + ' items</span></div>' +
-                stationItems.map((item) => {
-                  const tags = [...item.dietaryTags.slice(0, 4), ...item.allergens.slice(0, 3).map((allergen) => allergen.label)];
-                  const meta = itemMeta(item);
-                  return '<div class="item">' +
-                    '<div><div class="itemName">' + escapeHtml(item.name) + '</div>' +
-                    (tags.length ? '<div class="tags">' + tags.map((tag) => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' : '') +
-                    '</div>' +
-                    '<div class="itemMeta">' + escapeHtml(meta || item.availability.status) + '</div>' +
-                  '</div>';
-                }).join('') +
-                (hidden > 0 ? '<p class="message">+' + hidden.toLocaleString() + ' more items in this station.</p>' : '') +
-              '</div>';
-            }).join('') +
-            '</section>'
-          )).join('') +
-        '</article>';
-      }).join('');
+      if (!activeLocationId || !menu.locations.some((location) => location.id === activeLocationId)) {
+        activeLocationId = menu.locations[0].id;
+      }
+      renderSelectedLocation(menu);
     }
 
     async function fetchMenu() {
       const date = isoDate(selectedDate);
+      const cacheKey = school.id + ':' + date;
       menuTitle.textContent = displayDate(selectedDate);
+      activeLocationId = '';
+      const cached = browserMenuCache.get(cacheKey);
+      if (cached) {
+        renderMenu(cached, 'browser cache');
+        return;
+      }
+
+      const requestId = ++requestSeq;
       renderMessage('loading', 'Fetching ' + school.name + ' menus for ' + date + '...', '');
       try {
         const response = await fetch('/v1/schools/' + encodeURIComponent(school.id) + '/menus?date=' + date);
         const body = await response.json();
+        if (requestId !== requestSeq) return;
         if (!response.ok || body.result?.state !== 'adapter_ready') {
           const reason = body.result?.reason || body.result?.error || body.error || 'Menu adapter is not ready for this school/date.';
           renderMessage('blocked', reason, 'pending');
           return;
         }
-        renderMenu(body.result.data);
+        browserMenuCache.set(cacheKey, body.result.data);
+        const serverCache = response.headers.get('X-Campus-Cache');
+        const age = response.headers.get('X-Campus-Cache-Age');
+        const cacheLabel = serverCache ? serverCache.toLowerCase() + (age && age !== '0' ? ' · ' + age + 's' : '') : '';
+        renderMenu(body.result.data, cacheLabel);
       } catch (error) {
+        if (requestId !== requestSeq) return;
         renderMessage('error', error instanceof Error ? error.message : 'Menu fetch failed.', 'pending');
       }
     }
@@ -1369,6 +1449,12 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       if (!button) return;
       const [year, month, day] = button.dataset.date.split('-').map(Number);
       setSelectedDate(new Date(year, month - 1, day));
+    });
+    locationTabs.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-location-id]');
+      if (!button || !latestMenu) return;
+      activeLocationId = button.dataset.locationId;
+      renderSelectedLocation(latestMenu);
     });
     document.querySelector('#prevMonth').addEventListener('click', () => {
       visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
