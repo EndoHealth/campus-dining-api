@@ -1232,6 +1232,7 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
     const locationTabs = document.querySelector('#locationTabs');
     const menuBody = document.querySelector('#menuBody');
     const browserMenuCache = new Map();
+    let locationOptions = [];
     let activeLocationId = '';
     let latestMenu = null;
     let requestSeq = 0;
@@ -1320,7 +1321,7 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       menuState.textContent = label;
       cacheHint.textContent = '';
       summary.innerHTML = '';
-      locationTabs.innerHTML = '';
+      if (!locationOptions.length) locationTabs.innerHTML = '';
       menuBody.innerHTML = '<p class="message">' + escapeHtml(body) + '</p>';
     }
 
@@ -1335,11 +1336,21 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       return parts.join(' · ');
     }
 
-    function renderTabs(menu) {
-      locationTabs.innerHTML = menu.locations.map((location) => {
-        const itemCount = location.periods.flatMap((period) => period.stations.flatMap((station) => station.items)).length;
+    function locationItemCount(menu, locationId) {
+      const location = menu?.locations?.find((candidate) => candidate.id === locationId);
+      if (!location) return undefined;
+      return location.periods.flatMap((period) => period.stations.flatMap((station) => station.items)).length;
+    }
+
+    function renderKnownTabs(menu = latestMenu) {
+      const source = locationOptions.length
+        ? locationOptions
+        : (menu?.locations ?? []).map((location) => ({ id: location.id, name: location.name }));
+      locationTabs.innerHTML = source.map((location) => {
+        const itemCount = locationItemCount(menu, location.id);
+        const suffix = typeof itemCount === 'number' ? ' · ' + itemCount.toLocaleString() : '';
         return '<button class="tabButton" role="tab" aria-selected="' + String(location.id === activeLocationId) + '" data-location-id="' + escapeHtml(location.id) + '">' +
-          escapeHtml(location.name) + ' · ' + itemCount.toLocaleString() +
+          escapeHtml(location.name) + suffix +
         '</button>';
       }).join('');
     }
@@ -1351,7 +1362,7 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
         return;
       }
       activeLocationId = location.id;
-      renderTabs(menu);
+      renderKnownTabs(menu);
       const locationItems = location.periods.flatMap((period) => period.stations.flatMap((station) => station.items));
       menuBody.innerHTML = '<article class="location">' +
         '<div class="locationHead"><h3>' + escapeHtml(location.name) + '</h3><span class="muted">' + locationItems.length.toLocaleString() + ' items</span></div>' +
@@ -1394,7 +1405,7 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       menuState.textContent = 'ready';
       cacheHint.textContent = cacheLabel;
       if (!items.length) {
-        locationTabs.innerHTML = '';
+        renderKnownTabs(menu);
         menuBody.innerHTML = '<p class="message">No menu items were published by this source for the selected date.</p>';
         return;
       }
@@ -1406,9 +1417,12 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
 
     async function fetchMenu() {
       const date = isoDate(selectedDate);
-      const cacheKey = school.id + ':' + date;
+      if (!activeLocationId && locationOptions.length) {
+        activeLocationId = locationOptions[0].id;
+      }
+      const locationQuery = activeLocationId && locationOptions.length ? '&locationId=' + encodeURIComponent(activeLocationId) : '';
+      const cacheKey = school.id + ':' + date + ':' + (activeLocationId || 'all');
       menuTitle.textContent = displayDate(selectedDate);
-      activeLocationId = '';
       const cached = browserMenuCache.get(cacheKey);
       if (cached) {
         renderMenu(cached, 'browser cache');
@@ -1417,8 +1431,9 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
 
       const requestId = ++requestSeq;
       renderMessage('loading', 'Fetching ' + school.name + ' menus for ' + date + '...', '');
+      renderKnownTabs();
       try {
-        const response = await fetch('/v1/schools/' + encodeURIComponent(school.id) + '/menus?date=' + date);
+        const response = await fetch('/v1/schools/' + encodeURIComponent(school.id) + '/menus?date=' + date + locationQuery);
         const body = await response.json();
         if (requestId !== requestSeq) return;
         if (!response.ok || body.result?.state !== 'adapter_ready') {
@@ -1437,9 +1452,27 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
       }
     }
 
+    async function fetchLocationOptions() {
+      try {
+        const response = await fetch('/v1/schools/' + encodeURIComponent(school.id) + '/locations');
+        if (!response.ok) return;
+        const body = await response.json();
+        const locations = body.result?.locations ?? [];
+        if (!locations.length) return;
+        locationOptions = locations.map((location) => ({
+          id: String(location.id),
+          name: location.name,
+        }));
+        activeLocationId = locationOptions[0].id;
+        renderKnownTabs();
+      } catch {
+        locationOptions = [];
+      }
+    }
+
     renderSchoolOptions();
     renderCalendar();
-    fetchMenu();
+    fetchLocationOptions().finally(fetchMenu);
 
     select.addEventListener('change', () => {
       window.location.href = '/schools/' + encodeURIComponent(select.value);
@@ -1452,9 +1485,13 @@ export function renderSchoolCalendarPage(school: SchoolCoverage) {
     });
     locationTabs.addEventListener('click', (event) => {
       const button = event.target.closest('[data-location-id]');
-      if (!button || !latestMenu) return;
+      if (!button) return;
       activeLocationId = button.dataset.locationId;
-      renderSelectedLocation(latestMenu);
+      if (locationOptions.length) {
+        fetchMenu();
+        return;
+      }
+      if (latestMenu) renderSelectedLocation(latestMenu);
     });
     document.querySelector('#prevMonth').addEventListener('click', () => {
       visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);

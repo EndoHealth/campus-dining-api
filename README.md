@@ -43,7 +43,8 @@ GET /v1/demo-summary
 GET /v1/coverage
 GET /v1/schools?query=stanford&status=confirmed&provider=official_api
 GET /v1/schools/:schoolId
-GET /v1/schools/:schoolId/menus?date=2026-06-29&meal=lunch
+GET /v1/schools/:schoolId/locations
+GET /v1/schools/:schoolId/menus?date=2026-06-29&meal=lunch&locationId=...
 ```
 
 Menu routes are intentionally adapter-gated. A school can be listed as
@@ -52,8 +53,10 @@ Menu routes are intentionally adapter-gated. A school can be listed as
 tested.
 
 `GET /schools/:schoolId` renders a school-level calendar UI. It uses the live
-menu endpoint client-side when a user selects a date and renders cafeteria tabs
-from the returned locations.
+locations endpoint first when available, renders cafeteria tabs, and fetches
+only the active cafeteria's menu with `locationId`. Providers without a
+lightweight locations endpoint fall back to full-date menu data and build tabs
+from the returned normalized locations.
 
 Menu API responses are cached in memory for 30 minutes by school/date/meal/
 location and expose `X-Campus-Cache` plus `X-Campus-Cache-Age` headers. Provider

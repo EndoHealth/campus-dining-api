@@ -1,6 +1,6 @@
 import { allergenKeysInIngredientText } from './allergen-text.js';
 import { fetchJson } from './http.js';
-import type { DiningProviderAdapter, ProviderFetchResult } from './types.js';
+import type { DiningProviderAdapter, ProviderFetchResult, ProviderLocationsResult } from './types.js';
 import type {
   AllergenFact,
   AllergenKey,
@@ -126,8 +126,52 @@ const TOP_9_ALLERGEN_KEYS: AllergenKey[] = [
   'sesame',
 ];
 
+const NUTRISLICE_SCHOOLS_TTL_MS = 30 * 60 * 1000;
+const nutrisliceSchoolsCache = new Map<string, { expiresAt: number; schools: NutrisliceSchool[] }>();
+
 export class NutrisliceProvider implements DiningProviderAdapter {
   readonly provider = 'vendor_nutrislice' as const;
+
+  async fetchLocations(school: SchoolCoverage): Promise<ProviderLocationsResult> {
+    const fetchedAt = new Date().toISOString();
+    const district = getNutrisliceDistrict(school.sourceUrl);
+
+    if (!district) {
+      return {
+        state: 'provider_error',
+        provider: this.provider,
+        sourceUrl: school.sourceUrl,
+        reason: 'Nutrislice district slug was not found in source URL.',
+      };
+    }
+
+    const apiBaseUrl = `https://${district}.api.nutrislice.com`;
+
+    try {
+      const schools = await fetchNutrisliceSchools(apiBaseUrl);
+      return {
+        state: 'adapter_ready',
+        provider: this.provider,
+        fetchedAt,
+        sourceUrl: school.sourceUrl,
+        locations: schools.map((location) => ({
+          id: String(location.id),
+          name: location.name,
+          sourceLocationId: String(location.id),
+          address: location.address,
+          timezone: location.timezone ?? undefined,
+        })),
+      };
+    } catch (error) {
+      return {
+        state: 'provider_error',
+        provider: this.provider,
+        sourceUrl: school.sourceUrl,
+        reason: 'Nutrislice location fetch failed.',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 
   async fetchMenu(school: SchoolCoverage, query: MenuQuery): Promise<ProviderFetchResult> {
     const fetchedAt = new Date().toISOString();
@@ -146,8 +190,21 @@ export class NutrisliceProvider implements DiningProviderAdapter {
     const apiBaseUrl = `https://${district}.api.nutrislice.com`;
 
     try {
-      const schools = await fetchJson<NutrisliceSchool[]>(`${apiBaseUrl}/menu/api/schools/`);
-      const selectedSchools = filterLocations(schools, query.locationId);
+      let schools = await fetchNutrisliceSchools(apiBaseUrl, {
+        requireMenuTypes: true,
+        locationId: query.locationId,
+      });
+      let selectedSchools = filterLocations(schools, query.locationId);
+
+      if (query.locationId && selectedSchools.length === 0) {
+        schools = await fetchNutrisliceSchools(apiBaseUrl, {
+          bypassCache: true,
+          requireMenuTypes: true,
+          locationId: query.locationId,
+        });
+        selectedSchools = filterLocations(schools, query.locationId);
+      }
+
       const locationMenus = await Promise.all(
         selectedSchools.map((location) => fetchLocationMenu(apiBaseUrl, school, location, date, query.meal))
       );
@@ -179,6 +236,39 @@ export class NutrisliceProvider implements DiningProviderAdapter {
       };
     }
   }
+}
+
+async function fetchNutrisliceSchools(
+  apiBaseUrl: string,
+  options: { bypassCache?: boolean; locationId?: string; requireMenuTypes?: boolean } = {}
+) {
+  const cached = nutrisliceSchoolsCache.get(apiBaseUrl);
+  const now = Date.now();
+  if (
+    cached &&
+    cached.expiresAt > now &&
+    !options.bypassCache &&
+    (!options.requireMenuTypes || hasActiveMenuTypes(cached.schools)) &&
+    (!options.locationId || filterLocations(cached.schools, options.locationId).length > 0)
+  ) {
+    return cached.schools;
+  }
+
+  const schools = await fetchJson<NutrisliceSchool[]>(`${apiBaseUrl}/menu/api/schools/`);
+  const schoolsToStore =
+    cached && hasActiveMenuTypes(cached.schools) && !hasActiveMenuTypes(schools)
+      ? cached.schools
+      : schools;
+
+  nutrisliceSchoolsCache.set(apiBaseUrl, {
+    schools: schoolsToStore,
+    expiresAt: now + NUTRISLICE_SCHOOLS_TTL_MS,
+  });
+  return schoolsToStore;
+}
+
+function hasActiveMenuTypes(schools: NutrisliceSchool[]) {
+  return schools.some((school) => (school.active_menu_types ?? []).length > 0);
 }
 
 function getNutrisliceDistrict(sourceUrl: string) {

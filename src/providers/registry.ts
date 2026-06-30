@@ -1,4 +1,8 @@
-import type { DiningProviderAdapter, ProviderFetchResult } from './types.js';
+import type {
+  DiningProviderAdapter,
+  ProviderFetchResult,
+  ProviderLocationsResult,
+} from './types.js';
 import { BonAppetitProvider } from './bonappetit.js';
 import { DineOnCampusProvider } from './dineoncampus.js';
 import { FoodProProvider } from './foodpro.js';
@@ -96,5 +100,18 @@ class IngredientAllergenEnrichmentProvider implements DiningProviderAdapter {
       ...result,
       data: enrichMenuDietaryTagsFromSourceText(enrichMenuAllergensFromIngredients(result.data)),
     };
+  }
+
+  async fetchLocations(school: SchoolCoverage): Promise<ProviderLocationsResult> {
+    if (!this.adapter.fetchLocations) {
+      return {
+        state: 'poc_required',
+        provider: school.providerKind,
+        sourceUrl: school.sourceUrl,
+        reason: 'This provider does not expose a lightweight cafeteria location list yet.',
+      };
+    }
+
+    return this.adapter.fetchLocations(school);
   }
 }

@@ -15,6 +15,53 @@ const menuQuerySchema = z.object({
 
 const menusRouter = new Hono();
 
+menusRouter.get('/:schoolId/locations', async (c) => {
+  const school = findSchoolById(c.req.param('schoolId'));
+
+  if (!school) {
+    return c.json({ error: 'school_not_found' }, 404);
+  }
+
+  const adapter = getProviderAdapter(school.providerKind);
+
+  if (!adapter.fetchLocations) {
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.json(
+      {
+        school,
+        result: {
+          state: 'poc_required',
+          provider: school.providerKind,
+          sourceUrl: school.sourceUrl,
+          reason: 'This provider does not expose a lightweight cafeteria location list yet.',
+        },
+      },
+      501
+    );
+  }
+
+  const result = await adapter.fetchLocations(school);
+  const status =
+    result.state === 'adapter_pending' || result.state === 'poc_required'
+      ? 501
+      : result.state === 'provider_error'
+        ? 502
+        : 200;
+
+  c.header(
+    'Cache-Control',
+    result.state === 'provider_error' ? 'public, max-age=300' : 'public, max-age=1800'
+  );
+
+  return c.json(
+    {
+      school,
+      result,
+    },
+    status
+  );
+});
+
 menusRouter.get('/:schoolId/menus', async (c) => {
   const school = findSchoolById(c.req.param('schoolId'));
 

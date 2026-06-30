@@ -27,7 +27,9 @@ describe('routes', () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain('Princeton University Dining Calendar');
-    expect(body).toContain("fetch('/v1/schools/' + encodeURIComponent(school.id) + '/menus?date=' + date)");
+    expect(body).toContain("fetch('/v1/schools/' + encodeURIComponent(school.id) + '/locations')");
+    expect(body).toContain("locationId=' + encodeURIComponent(activeLocationId)");
+    expect(body).toContain('fetchLocationOptions().finally(fetchMenu)');
   });
 
   it('returns 404 for unknown school calendar pages', async () => {
@@ -47,6 +49,22 @@ describe('routes', () => {
       name: 'University of Chicago',
     });
   });
+
+  it(
+    'serves lightweight cafeteria locations when provider supports it',
+    async () => {
+      const response = await app.request('/v1/schools/yale/locations');
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.school.id).toBe('yale');
+      expect(body.result.state).toBe('adapter_ready');
+      expect(body.result.locations.length).toBeGreaterThan(1);
+      expect(body.result.locations[0]).toHaveProperty('id');
+      expect(body.result.locations[0]).toHaveProperty('name');
+    },
+    15000
+  );
 
   it(
     'fetches live normalized menus for Princeton FoodPro',

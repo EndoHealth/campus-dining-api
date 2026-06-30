@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { findSchoolById } from './data/coverage.js';
@@ -17,6 +18,7 @@ export function createApp() {
   });
 
   app.use('*', cors());
+  app.use('*', compress({ threshold: 2048 }));
   app.use('*', async (c, next) => {
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
